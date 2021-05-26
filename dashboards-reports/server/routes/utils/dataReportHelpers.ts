@@ -28,7 +28,6 @@ import { DATA_REPORT_CONFIG } from './constants';
 
 import esb from 'elastic-builder';
 import moment from 'moment';
-import converter from 'json-2-csv';
 
 export var metaData = {
   saved_search_id: <string>null,
@@ -163,8 +162,8 @@ export const buildQuery = (report, is_count) => {
   return reqBody;
 };
 
-// Fetch the data from OpenSearch
-export const getOpenSearchData = (arrayHits, report, params) => {
+// Format each hit into an exportable CSV line
+export const convertHitsToCSVLines = (arrayHits, report, params) => {
   let hits: any = [];
   for (let valueRes of arrayHits) {
     for (let data of valueRes.hits) {
@@ -184,27 +183,19 @@ export const getOpenSearchData = (arrayHits, report, params) => {
       } else {
         hits.push(params.excel ? sanitize(data) : data);
       }
-
-      // Truncate to expected limit size
-      if (hits.length >= params.limit) {
-        return hits;
-      }
     }
   }
   return hits;
 };
 
-//Convert the data to Csv format
-export const convertToCSV = async (dataset) => {
-  let convertedData: any = [];
-  const options = {
-    delimiter: { field: ',', eol: '\n' },
-    emptyFieldValue: ' ',
-  };
-  await converter.json2csvAsync(dataset[0], options).then((csv) => {
-    convertedData = csv;
-  });
-  return convertedData;
+export const createCsv = (headers) => {
+  // @todo
+};
+
+export const pushToCsv = (csv, lines) => {
+  for (let line of lines) {
+    // @todo
+  }
 };
 
 //Return only the selected fields

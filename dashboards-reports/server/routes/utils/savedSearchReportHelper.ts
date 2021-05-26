@@ -26,8 +26,9 @@
 
 import {
   buildQuery,
-  convertToCSV,
-  getOpenSearchData,
+  createCsv,
+  pushToCsv,
+  convertHitsToCSVLines,
   getSelectedFields,
   metaData,
 } from './dataReportHelpers';
@@ -142,7 +143,6 @@ async function generateReportData(
   isScheduledTask: boolean
 ) {
   let opensearchData: any = {};
-  const arrayHits: any = [];
   const report = { _source: metaData };
   const indexPattern: string = report._source.paternName;
   const maxResultSize: number = await getMaxResultSize();
@@ -154,12 +154,21 @@ async function generateReportData(
   }
 
   const reqBody = buildRequestBody(buildQuery(report, 0));
+
+  const csv = createCsv([]);
+
   if (total > maxResultSize) {
-    await getOpenSearchDataByScroll();
+    for await (let items of getOpenSearchDataByScroll()) {
+      const dataset: any = convertHitsToCSVLines(items, report, params);
+      pushToCsv(csv, dataset);
+    }
   } else {
-    await getOpenSearchDataBySearch();
+    let items: any = await getOpenSearchDataBySearch();
+    const dataset: any = convertHitsToCSVLines(items, report, params);
+    pushToCsv(csv, dataset);
   }
-  return convertOpenSearchDataToCsv();
+
+  return finalizeCsv(csv);
 
   // Fetch OpenSearch query max size windows to decide search or scroll
   async function getMaxResultSize() {
@@ -199,7 +208,7 @@ async function generateReportData(
     );
   }
 
-  async function getOpenSearchDataByScroll() {
+  async function* getOpenSearchDataByScroll() {
     // Open scroll context by fetching first batch
     opensearchData = await callCluster(
       client,
@@ -212,7 +221,8 @@ async function generateReportData(
       },
       isScheduledTask
     );
-    arrayHits.push(opensearchData.hits);
+
+    yield opensearchData.hits;
 
     // Start scrolling till the end
     const nbScroll = Math.floor(total / maxResultSize);
@@ -227,7 +237,7 @@ async function generateReportData(
         isScheduledTask
       );
       if (Object.keys(resScroll.hits.hits).length > 0) {
-        arrayHits.push(resScroll.hits);
+        yield resScroll.hits;
       }
     }
 
@@ -253,7 +263,8 @@ async function generateReportData(
       },
       isScheduledTask
     );
-    arrayHits.push(opensearchData.hits);
+
+    return opensearchData.hits;
   }
 
   function buildRequestBody(query: any) {
@@ -272,9 +283,7 @@ async function generateReportData(
   }
 
   // Parse OpenSearch data and convert to CSV
-  async function convertOpenSearchDataToCsv() {
-    const dataset: any = [];
-    dataset.push(getOpenSearchData(arrayHits, report, params));
-    return await convertToCSV(dataset);
+  async function finalizeCsv(csv) {
+    // @todo
   }
 }
